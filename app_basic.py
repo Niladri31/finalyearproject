@@ -14,17 +14,18 @@ app = Flask(__name__)
 def upload():  
     return render_template("upload.html")  
  
-@app.route('/success', methods = ['POST'])  
+@app.route('/pca', methods = ['POST'])  
 def success():  
     if request.method == 'POST':  
+        UPLOAD_PCA = 'templates/upload_pca'
+        app.config['UPLOAD_PCA'] = UPLOAD_PCA
         image1_path = request.files['file']  
         image2_path = request.files['file1'] 
-        image1_path.save(image1_path.filename) 
-        image2_path.save(image2_path.filename)
-        name1=image1_path.filename
-        name2=image2_path.filename
-        image1 = cv2.imread(r'D:\7th sem\Dubai_11272000.jpg') 
-        image2=cv2.imread(r'D:\7th sem\Dubai_11122012.jpg')
+        image1_path.save(os.path.join(app.config["UPLOAD_PCA"], image1_path.filename))
+        image2_path.save(os.path.join(app.config["UPLOAD_PCA"], image2_path.filename))
+    
+        image1 = cv2.imread(os.path.join(app.config["UPLOAD_PCA"], image1_path.filename))
+        image2=cv2.imread(os.path.join(app.config["UPLOAD_PCA"], image2_path.filename))
         out_dir="D:/"
         print(image1)
         print(image2)
@@ -73,16 +74,22 @@ def success():
         change_map[change_map == least_index] = 255
         change_map[change_map != 255] = 0
         change_map = change_map.astype(np.uint8)
-    
+        kernel = np.asarray(((0,0,1,0,0),
+                        (0,1,1,1,0),
+                        (1,1,1,1,1),
+                        (0,1,1,1,0),
+                        (0,0,1,0,0)), dtype=np.uint8)
+        cleanChangeMap = cv2.erode(change_map,kernel)               
 
         print('[INFO] Save Change Map ...')
-        cv2.imwrite(os.path.join(out_dir , 'ChangeMap.jpg'), change_map)
+        cv2.imwrite(os.path.join(app.config["UPLOAD_PCA"], 'ChangeMap.jpg'), cleanChangeMap )
 
         
         print('[INFO] End Change Detection')
-
-
-        return render_template("complete.html")  
+        
+        response =  { 'Status' : 'Success', 'ImagePath': os.path.join(app.config["UPLOAD_PCA"], 'ChangeMap.jpg') }
+        print(response)
+        return jsonify(response) 
 
 
 
@@ -92,9 +99,9 @@ def find_vector_set(diff_image, new_size):
     j = 0
     vector_set = np.zeros((int(new_size[0] * new_size[1] / 25),25))
     while i < vector_set.shape[0]:
-        while j < new_size[1]:
+        while j < new_size[0]:
             k = 0
-            while k < new_size[0]:
+            while k < new_size[1]:
                 block   = diff_image[j:j+5, k:k+5]
                 feature = block.ravel()
                 vector_set[i, :] = feature
@@ -136,7 +143,7 @@ def clustering(FVS, components, new):
     count  = Counter(output)
  
     least_index = min(count, key = count.get)
-    change_map  = np.reshape(output,(new[1] - 4, new[0] - 4))
+    change_map  = np.reshape(output,(new[0] - 4, new[1] - 4))
     return least_index, change_map
 
 
